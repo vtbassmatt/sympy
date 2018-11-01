@@ -1,12 +1,14 @@
 SymPy
 =====
 
-|pypi version| |Build status| |Gitter Badge| |Zenodo Badge|
+|pypi version| |Travis status| |Azure Pipelines status| |Gitter Badge| |Zenodo Badge|
 
 .. |pypi version| image:: https://img.shields.io/pypi/v/sympy.svg
    :target: https://pypi.python.org/pypi/sympy
-.. |Build status| image:: https://secure.travis-ci.org/sympy/sympy.svg?branch=master
+.. |Travis status| image:: https://secure.travis-ci.org/sympy/sympy.svg?branch=master
    :target: https://travis-ci.org/sympy/sympy
+.. |Azure Pipelines status| image:: https://dev.azure.com/SymPy/SymPy/_apis/build/status/sympy.sympy
+   :target: https://dev.azure.com/SymPy/SymPy/_build/latest?definitionId=1
 .. |Gitter Badge| image:: https://badges.gitter.im/Join%20Chat.svg
    :alt: Join the chat at https://gitter.im/sympy/sympy
    :target: https://gitter.im/sympy/sympy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
