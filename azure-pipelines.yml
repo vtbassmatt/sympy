@@ -146,6 +146,11 @@ jobs:
       TEST_SYMPY: 'true'
       SPLIT: '$(SPLIT)'
 
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFiles: '**/TEST-*.xml' 
+      searchFolder: '$(System.DefaultWorkingDirectory)'
+
 - job: 'Optional_dependencies'
   # Allow this build to fail. There are gfortran issues that should be fixed
   # once the conda-forge compiler migration is finished.

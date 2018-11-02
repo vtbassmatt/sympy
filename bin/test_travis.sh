@@ -220,7 +220,7 @@ if [[ "${TEST_SYMPY}" == "true" ]]; then
     cat << EOF | python -We:invalid
 print('Testing SYMPY, split ${SPLIT}')
 import sympy
-if not sympy.test(split='${SPLIT}'):
+if not sympy.test(split='${SPLIT}', junit=True):
    raise Exception('Tests failed')
 EOF
 fi
