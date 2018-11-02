@@ -2527,29 +2527,37 @@ class JUnitReporter(Reporter):
         with open(self._filename_pattern % title, 'w') as f:
             f.write('<testsuite name="%s">\n' % title)
             for class_name, function in self._passed_cases:
-                f.write('  <testcase classname="%s" name="%s"/>\n' % (class_name, function.__name__))
+                test_name = getattr(function, '__name__', 'none')
+                f.write('  <testcase classname="%s" name="%s"/>\n' % (class_name, test_name))
             for class_name, function in self._xfailed_cases:
-                f.write('  <testcase classname="%s" name="%s" status="xfail"/>\n' % (class_name, function.__name__))
+                test_name = getattr(function, '__name__', 'none')
+                f.write('  <testcase classname="%s" name="%s" status="xfail"/>\n' % (class_name, test_name))
             for test_name, message in self._failed_doctest:
                 f.write('''  <testcase classname="doctests" name="%s">
     <failure message="%s">
   </testcase>''' % (test_name, message))
             for class_name, function, exc_info in self._failed:
                 # TODO: format exc_info[2] traceback info
+                test_name = getattr(function, '__name__', 'none')
+                failure_type = getattr(exc_info[0], '__name__', 'none')
                 f.write('''  <testcase classname="%s" name="%s">
     <failure type="%s" message="%s"/>
-  </testcase>\n''' % (class_name, function.__name__, exc_info[0].__name__, exc_info[1]))
+  </testcase>\n''' % (class_name, test_name, failure_type, exc_info[1]))
             for class_name, function, message in self._skipped_cases:
+                test_name = getattr(function, '__name__', 'none')
                 f.write('''  <testcase classname="%s" name="%s">
     <skipped>%s</skipped>
-  </testcase>\n''' % (class_name, function.__name__, message))
+  </testcase>\n''' % (class_name, test_name, message))
             for class_name, function, message in self._xpassed:
-                f.write('  <testcase classname="%s" name="%s" status="xpass: %s"></testcase>\n' % (class_name, function.__name__, message))
+                test_name = getattr(function, '__name__', 'none')
+                f.write('  <testcase classname="%s" name="%s" status="xpass: %s"></testcase>\n' % (class_name, test_name, message))
             for class_name, function, exc_info in self._exceptions:
+                test_name = getattr(function, '__name__', 'none')
+                failure_type = getattr(exc_info[0], '__name__', 'none')
                 # TODO: format exc_info[2] traceback info
                 f.write('''  <testcase classname="%s" name="%s" status="exception">
     <error type="%s" message="%s"></error>
-  </testcase>\n''' % (class_name, function.__name__, exc_info[0].__name__, exc_info[1]))
+  </testcase>\n''' % (class_name, test_name, failure_type, exc_info[1]))
             f.write('  <system-out>\n')
             f.write(''.join(self._stdout))
             f.write('  </system-out>\n')
