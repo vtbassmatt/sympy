@@ -70,7 +70,7 @@ if [[ "${TEST_DOCTESTS}" == "true" ]]; then
     cat << EOF | python -We:invalid
 print('Testing DOCTESTS')
 import sympy
-if not sympy.doctest():
+if not sympy.doctest(junit=True):
     raise Exception('Tests failed')
 EOF
     cd ..
@@ -83,7 +83,7 @@ if [[ "${TEST_SLOW}" == "true" ]]; then
     cat << EOF | python
 print('Testing SLOW')
 import sympy
-if not sympy.test(split='${SPLIT}', slow=True, verbose=True):
+if not sympy.test(split='${SPLIT}', slow=True, verbose=True, junit=True):
     raise Exception('Tests failed')
 EOF
 fi
@@ -206,9 +206,9 @@ if [[ "${TEST_OPT_DEPENDENCY}" == *"symengine"* ]]; then
     cat << EOF | python
 print('Testing SYMENGINE')
 import sympy
-if not sympy.test('sympy/physics/mechanics'):
+if not sympy.test('sympy/physics/mechanics', junit=True):
     raise Exception('Tests failed')
-if not sympy.test('sympy/liealgebras'):
+if not sympy.test('sympy/liealgebras', junit=True):
     raise Exception('Tests failed')
 EOF
     unset USE_SYMENGINE

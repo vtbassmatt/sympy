@@ -670,6 +670,7 @@ def _doctest(*paths, **kwargs):
     force_colors = kwargs.get("force_colors", False)
     blacklist = kwargs.get("blacklist", [])
     split  = kwargs.get('split', None)
+    use_junit = kwargs.get('junit', False)
     blacklist.extend([
         "doc/src/modules/plotting.rst",  # generates live plots
         "doc/src/modules/physics/mechanics/autolev_parser.rst",
@@ -757,8 +758,11 @@ def _doctest(*paths, **kwargs):
     warnings.simplefilter("error", SymPyDeprecationWarning)
     warnings.filterwarnings('error', '.*', DeprecationWarning, module='sympy.*')
 
-    r = PyTestReporter(verbose, split=split, colors=colors,\
-                       force_colors=force_colors)
+    if use_junit:
+        r = JUnitReporter(verbose=verbose, filename_pattern='TEST-%s.xml', split=split)
+    else:
+        r = PyTestReporter(verbose, split=split, colors=colors,
+                force_colors=force_colors)
     t = SymPyDocTests(r, normal)
 
     test_files = t.get_test_files('sympy')
