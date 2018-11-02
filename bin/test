@@ -82,6 +82,8 @@ parser.add_option('--split', action="store", type='str', default=None,
 parser.add_option('--rerun', action="store", dest="rerun",
                   default=0, help="Number of times to rerun the specified tests",
                   type='int')
+parser.add_option("--junit", action="store_true", dest="junit",
+        default=False, help="Use the JUnit test reporter.")
 parser.set_usage("test [options ...] [tests ...]")
 parser.epilog = """\
 "options" are any of the options above. "tests" are 0 or more glob strings of \
@@ -109,7 +111,7 @@ ok = sympy.test(*args, verbose=options.verbose, kw=options.kw,
     force_colors=options.force_colors, sort=options.sort,
     seed=options.seed, slow=options.slow, timeout=options.timeout,
     subprocess=options.subprocess, enhance_asserts=options.enhance_asserts,
-    split=options.split, rerun=options.rerun)
+    split=options.split, rerun=options.rerun, junit=options.junit)
 
 if ok:
     sys.exit(0)

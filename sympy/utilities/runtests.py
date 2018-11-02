@@ -524,8 +524,12 @@ def _test(*paths, **kwargs):
     blacklist = convert_to_native_paths(blacklist)
     fast_threshold = kwargs.get('fast_threshold', None)
     slow_threshold = kwargs.get('slow_threshold', None)
-    r = PyTestReporter(verbose=verbose, tb=tb, colors=colors,
-        force_colors=force_colors, split=split)
+    use_junit = kwargs.get('junit', False)
+    if use_junit:
+        r = JUnitReporter(verbose=verbose, filename_pattern='TEST-%s.xml', split=split)
+    else:
+        r = PyTestReporter(verbose=verbose, tb=tb, colors=colors,
+            force_colors=force_colors, split=split)
     t = SymPyTests(r, kw, post_mortem, seed,
                    fast_threshold=fast_threshold,
                    slow_threshold=slow_threshold)
@@ -2294,6 +2298,329 @@ class PyTestReporter(Reporter):
     def test_skip(self, v=None):
         char = "s"
         self._skipped += 1
+        if v is not None:
+            message = str(v)
+            if message == "KeyboardInterrupt":
+                char = "K"
+            elif message == "Timeout":
+                char = "T"
+            elif message == "Slow":
+                char = "w"
+        if self._verbose:
+            if v is not None:
+                self.write(message + ' ', "Blue")
+            else:
+                self.write(" - ", "Blue")
+        self.write(char, "Blue")
+
+    def test_exception(self, exc_info):
+        self._exceptions.append((self._active_file, self._active_f, exc_info))
+        if exc_info[0] is TimeOutError:
+            self.write("T", "Red")
+        else:
+            self.write("E", "Red")
+        self._active_file_error = True
+
+    def import_error(self, filename, exc_info):
+        self._exceptions.append((filename, None, exc_info))
+        rel_name = filename[len(self._root_dir) + 1:]
+        self.write(rel_name)
+        self.write("[?]   Failed to import", "Red")
+        self.write(" ")
+        self.write("[FAIL]", "Red", align="right")
+        self.write("\n")
+
+
+class JUnitReporter(Reporter):
+    """
+    JUnit-like reporter.
+    
+    Produces simple, JUnit-style output like this:
+
+    <testsuite tests="3">
+        <testcase classname="foo1" name="ASuccessfulTest"/>
+        <testcase classname="foo2" name="AnotherSuccessfulTest"/>
+        <testcase classname="foo3" name="AFailingTest">
+            <failure type="NotEnoughFoo"> details about failure </failure>
+        </testcase>
+    </testsuite>
+
+    See https://stackoverflow.com/questions/4922867/what-is-the-junit-xml-format-specification-that-hudson-supports
+    """
+
+    def __init__(self, verbose=False, filename_pattern="TEST-%s.xml", split=None):
+        self._verbose = verbose
+        self._filename_pattern = filename_pattern
+        self._xfailed = 0
+        self._xpassed = []
+        self._failed = []
+        self._failed_doctest = []
+        self._passed = 0
+        self._skipped = 0
+        self._exceptions = []
+        self._split = split
+        self._active_file = ''
+        self._active_f = None
+
+        self.slow_test_functions = []
+        self.fast_test_functions = []
+
+        # Data powering the JUnit output
+        self._stdout = []
+        self._xfailed_cases = []
+        self._passed_cases = []
+        self._skipped_cases = []
+
+    def root_dir(self, dir):
+        self._root_dir = dir
+
+    def write(self, text, color=None, align=None, width=None,
+              force_colors=None):
+        """
+        Raw sys.stdout output.
+
+        Parameters are ignored, but present for compat with PyTestReporter.
+
+        """
+        
+        # Avoid UnicodeEncodeError when printing out test failures
+        if PY3 and IS_WINDOWS:
+            text = text.encode('raw_unicode_escape').decode('utf8', 'ignore')
+
+        # cache the text; it will be written later
+        self._stdout.append(text)
+
+    def write_center(self, text, delim="="):
+        t = delim*3 + " " + text + " " + delim*3
+        self.write(t + "\n")
+
+    def write_exception(self, e, val, tb):
+        # remove the first item, as that is always runtests.py
+        tb = tb.tb_next
+        t = traceback.format_exception(e, val, tb)
+        self.write("".join(t))
+
+    def start(self, seed=None, msg="test process starts"):
+        self.write_center(msg)
+        executable = sys.executable
+        v = tuple(sys.version_info)
+        python_version = "%s.%s.%s-%s-%s" % v
+        implementation = platform.python_implementation()
+        if implementation == 'PyPy':
+            implementation += " %s.%s.%s-%s-%s" % sys.pypy_version_info
+        self.write("executable:         %s  (%s) [%s]\n" %
+            (executable, python_version, implementation))
+        from .misc import ARCH
+        self.write("architecture:       %s\n" % ARCH)
+        from sympy.core.cache import USE_CACHE
+        self.write("cache:              %s\n" % USE_CACHE)
+        from sympy.core.compatibility import GROUND_TYPES, HAS_GMPY
+        version = ''
+        if GROUND_TYPES =='gmpy':
+            if HAS_GMPY == 1:
+                import gmpy
+            elif HAS_GMPY == 2:
+                import gmpy2 as gmpy
+            version = gmpy.version()
+        self.write("ground types:       %s %s\n" % (GROUND_TYPES, version))
+        numpy = import_module('numpy')
+        self.write("numpy:              %s\n" % (None if not numpy else numpy.__version__))
+        if seed is not None:
+            self.write("random seed:        %d\n" % seed)
+        from .misc import HASH_RANDOMIZATION
+        self.write("hash randomization: ")
+        hash_seed = os.getenv("PYTHONHASHSEED") or '0'
+        if HASH_RANDOMIZATION and (hash_seed == "random" or int(hash_seed)):
+            self.write("on (PYTHONHASHSEED=%s)\n" % hash_seed)
+        else:
+            self.write("off\n")
+        if self._split:
+            self.write("split:              %s\n" % self._split)
+        self.write('\n')
+        self._t_start = clock()
+
+    def finish(self):
+        self._t_end = clock()
+        self.write("\n")
+        #global text, linelen
+        text = "tests finished: %d passed, " % self._passed
+
+        if len(self._failed) > 0:
+            text += "%d failed, " % len(self._failed)
+        if len(self._failed_doctest) > 0:
+            text += "%d failed, " % len(self._failed_doctest)
+        if self._skipped > 0:
+            text += "%d skipped, " % self._skipped
+        if self._xfailed > 0:
+            text += "%d expected to fail, " % self._xfailed
+        if len(self._xpassed) > 0:
+            text += "%d expected to fail but passed, " % len(self._xpassed)
+        if len(self._exceptions) > 0:
+            text += "%d exceptions, " % len(self._exceptions)
+        text += "in %.2f seconds" % (self._t_end - self._t_start)
+
+        if self.slow_test_functions:
+            self.write_center('slowest tests', '_')
+            sorted_slow = sorted(self.slow_test_functions, key=lambda r: r[1])
+            for slow_func_name, taken in sorted_slow:
+                self.write('%s - Took %.3f seconds\n' % (slow_func_name, taken))
+
+        if self.fast_test_functions:
+            self.write_center('unexpectedly fast tests', '_')
+            sorted_fast = sorted(self.fast_test_functions,
+                                 key=lambda r: r[1])
+            for fast_func_name, taken in sorted_fast:
+                self.write('%s - Took %.3f seconds\n' % (fast_func_name, taken))
+
+        if len(self._xpassed) > 0:
+            self.write_center("xpassed tests", "_")
+            for e in self._xpassed:
+                self.write("%s: %s\n" % (e[0], e[1]))
+            self.write("\n")
+
+        if len(self._exceptions) > 0:
+            for e in self._exceptions:
+                filename, f, (t, val, tb) = e
+                self.write_center("", "_")
+                if f is None:
+                    s = "%s" % filename
+                else:
+                    s = "%s:%s" % (filename, f.__name__)
+                self.write_center(s, "_")
+                self.write_exception(t, val, tb)
+            self.write("\n")
+
+        if len(self._failed) > 0:
+            for e in self._failed:
+                filename, f, (t, val, tb) = e
+                self.write_center("", "_")
+                self.write_center("%s:%s" % (filename, f.__name__), "_")
+                self.write_exception(t, val, tb)
+            self.write("\n")
+
+        if len(self._failed_doctest) > 0:
+            for e in self._failed_doctest:
+                filename, msg = e
+                self.write_center("", "_")
+                self.write_center("%s" % filename, "_")
+                self.write(msg)
+            self.write("\n")
+
+        self.write_center(text)
+        ok = len(self._failed) == 0 and len(self._exceptions) == 0 and \
+            len(self._failed_doctest) == 0
+        if not ok:
+            self.write("DO *NOT* COMMIT!\n")
+        
+        self.write_junit('_summary')
+        self.clear_junit_data()
+
+        return ok
+
+    def write_junit(self, title=None):
+        title = title or ''.join(os.path.basename(self._active_file).split(".")[:-1])
+
+        with open(self._filename_pattern % title, 'w') as f:
+            f.write('<testsuite name="%s">\n' % title)
+            for class_name, function in self._passed_cases:
+                f.write('  <testcase classname="%s" name="%s"/>\n' % (class_name, function.__name__))
+            for class_name, function in self._xfailed_cases:
+                f.write('  <testcase classname="%s" name="%s" status="xfail"/>\n' % (class_name, function.__name__))
+            for test_name, message in self._failed_doctest:
+                f.write('''  <testcase classname="doctests" name="%s">
+    <failure message="%s">
+  </testcase>''' % (test_name, message))
+            for class_name, function, exc_info in self._failed:
+                # TODO: format exc_info[2] traceback info
+                f.write('''  <testcase classname="%s" name="%s">
+    <failure type="%s" message="%s"/>
+  </testcase>\n''' % (class_name, function.__name__, exc_info[0].__name__, exc_info[1]))
+            for class_name, function, message in self._skipped_cases:
+                f.write('''  <testcase classname="%s" name="%s">
+    <skipped>%s</skipped>
+  </testcase>\n''' % (class_name, function.__name__, message))
+            for class_name, function, message in self._xpassed:
+                f.write('  <testcase classname="%s" name="%s" status="xpass: %s"></testcase>\n' % (class_name, function.__name__, message))
+            for class_name, function, exc_info in self._exceptions:
+                # TODO: format exc_info[2] traceback info
+                f.write('''  <testcase classname="%s" name="%s" status="exception">
+    <error type="%s" message="%s"></error>
+  </testcase>\n''' % (class_name, function.__name__, exc_info[0].__name__, exc_info[1]))
+            f.write('  <system-out>\n')
+            f.write(''.join(self._stdout))
+            f.write('  </system-out>\n')
+            f.write('</testsuite>\n')
+    
+    def clear_junit_data(self):
+        self._stdout = []
+        self._xfailed_cases = []
+        self._passed_cases = []
+        self._skipped_cases = []
+
+    def entering_filename(self, filename, n):
+
+        if self._active_file == '':
+            self.write_junit('_preamble')
+            self.clear_junit_data()
+
+        rel_name = filename[len(self._root_dir) + 1:]
+        self._active_file = rel_name
+        self._active_file_error = False
+        self.write(rel_name)
+        self.write("[%d] " % n)
+
+    def leaving_filename(self):
+        self.write(" ")
+        if self._active_file_error:
+            self.write("[FAIL]", "Red", align="right")
+        else:
+            self.write("[OK]", "Green", align="right")
+        self.write("\n")
+        if self._verbose:
+            self.write("\n")
+        
+        self.write_junit()
+        self.clear_junit_data()
+
+    def entering_test(self, f):
+        self._active_f = f
+        if self._verbose:
+            self.write("\n" + f.__name__ + " ")
+
+    def test_xfail(self):
+        self._xfailed += 1
+        self._xfailed_cases.append((self._active_file, self._active_f))
+        self.write("f", "Green")
+
+    def test_xpass(self, v):
+        message = str(v)
+        self._xpassed.append((self._active_file, self._active_f, message))
+        self.write("X", "Green")
+
+    def test_fail(self, exc_info):
+        self._failed.append((self._active_file, self._active_f, exc_info))
+        self.write("F", "Red")
+        self._active_file_error = True
+
+    def doctest_fail(self, name, error_msg):
+        # the first line contains "******", remove it:
+        error_msg = "\n".join(error_msg.split("\n")[1:])
+        self._failed_doctest.append((name, error_msg))
+        self.write("F", "Red")
+        self._active_file_error = True
+
+    def test_pass(self, char="."):
+        self._passed += 1
+        self._passed_cases.append((self._active_file, self._active_f))
+        if self._verbose:
+            self.write("ok", "Green")
+        else:
+            self.write(char, "Green")
+
+    def test_skip(self, v=None):
+        char = "s"
+        self._skipped += 1
+        self._skipped_cases.append((self._active_file, self._active_f, str(v)))
         if v is not None:
             message = str(v)
             if message == "KeyboardInterrupt":
