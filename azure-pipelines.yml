@@ -153,9 +153,9 @@ jobs:
   
   - script: |
       echo -= PREAMBLE =-
-      cat TEST-_preamble.xml
+      cat extra/TEST-_preamble.xml
       echo -= SUMMARY =-
-      cat TEST-_summary.xml
+      cat extra/TEST-_summary.xml
     displayName: Echo some test results files
 
   - task: PublishTestResults@2
