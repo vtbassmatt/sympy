@@ -88,7 +88,7 @@ jobs:
     env:
       TEST_DOCTESTS: 'true'
 
-      - task: PublishTestResults@2
+  - task: PublishTestResults@2
     inputs:
       testResultsFiles: '**/TEST-*.xml' 
       searchFolder: '$(System.DefaultWorkingDirectory)'
