@@ -153,10 +153,11 @@ jobs:
   
   - script: |
       echo -= PREAMBLE =-
-      cat extra/TEST-_preamble.xml
+      cat */TEST-_preamble.xml
       echo -= SUMMARY =-
-      cat extra/TEST-_summary.xml
+      cat */TEST-_summary.xml
     displayName: Echo some test results files
+    continueOnError: true
 
   - task: PublishTestResults@2
     inputs:
