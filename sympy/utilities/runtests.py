@@ -2338,9 +2338,7 @@ class PyTestReporter(Reporter):
 class JUnitReporter(Reporter):
     """
     JUnit-like reporter.
-    
     Produces simple, JUnit-style output like this:
-
     <testsuite tests="3">
         <testcase classname="foo1" name="ASuccessfulTest"/>
         <testcase classname="foo2" name="AnotherSuccessfulTest"/>
@@ -2348,7 +2346,6 @@ class JUnitReporter(Reporter):
             <failure type="NotEnoughFoo"> details about failure </failure>
         </testcase>
     </testsuite>
-
     See https://stackoverflow.com/questions/4922867/what-is-the-junit-xml-format-specification-that-hudson-supports
     """
 
